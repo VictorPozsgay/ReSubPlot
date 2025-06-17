@@ -1,0 +1,12 @@
+# Configuration file for ReSubPlot.isolate_legend_from_toml
+
+[pickle]
+# path to the pickle where the Figure objects is saved
+path = 'Moosehide_GST_v_snow.pkl'
+
+
+[save]
+# Whether or not to save the master plot to a pdf
+# If True: pass the name of the created pdf (e.g. path = 'master_plot')
+# If False: pass None (path = None)
+path = 'Moosehide_GST_v_snow'

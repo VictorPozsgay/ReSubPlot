@@ -1,0 +1,19 @@
+# Configuration file for ReSubPlot.master_plot_from_toml
+
+[pickle]
+# path to the pickle where the list of list of Figure objects is saved
+path = '/fs/yedoma/home/vpo001/storage/Yukon/ygs_sites/long_term_sims_slides/niagara_results/inversions_only/mat_fig.pkl'
+
+[sites]
+# list of sites (string), there will be a column per site in the subplot result
+list = ['Moosehide', 'Rockcreek', 'Sunnydale']
+
+[pad]
+# float that controls the padding between subplots, we suggest 0.03
+pad  = 0.03
+
+[save]
+# Whether or not to save the master plot to a pdf
+# If True: pass the name of the created pdf (e.g. path = 'master_plot')
+# If False: pass None (path = None)
+path = 'master_plot'
