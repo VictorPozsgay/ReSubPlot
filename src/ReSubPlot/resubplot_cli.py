@@ -3,10 +3,6 @@ import sys
 
 from ReSubPlot.master_toml import master_plot_from_toml, isolate_legend_from_toml
 
-# 1. Create new function that takes a TOML config file with path to pkl
-# 2. Unpickle the figures
-# 3. Link everything here
-
 def main():
     # Create the parser
     mainparser = argparse.ArgumentParser(description="Call function master_plot_from_toml() or isolate_legend_from_toml()")

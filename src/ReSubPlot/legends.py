@@ -61,7 +61,8 @@ def isolate_legend(fig_no_legend, save_plots=None):
         Original figure
     save_plots : string, optional
         If a name is passed, figure will be saved to PDF with the name
-        f'{save_plots}.pdf'
+        f'{save_plots}_{suffix}.pdf' with suffix in
+        ['legend_only', 'legend_on', legend_off']
 
     Returns
     -------
@@ -113,12 +114,17 @@ def isolate_legend(fig_no_legend, save_plots=None):
 
     fig_with_legend = pickle.loads(fig_with_legend)
 
-
     if save_plots:
         fig_legend = plt.figure()
         fig_legend.legend(handles, labels, loc='center')
         fig_legend.savefig(f'{save_plots}_legend_only.pdf', bbox_inches='tight')
         fig_with_legend.savefig(f'{save_plots}_legend_on.pdf', bbox_inches='tight')
         fig_no_legend.savefig(f'{save_plots}_legend_off.pdf', bbox_inches='tight')
+        plt.close(fig_legend)
+        plt.close(fig_with_legend)
+        plt.close(fig_no_legend)
+
+    plt.close(fig_with_legend)
+    plt.close(fig_no_legend)
 
     return fig_with_legend, fig_no_legend, legend
