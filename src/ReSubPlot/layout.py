@@ -8,6 +8,9 @@ existing Figure object."""
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
+from matplotlib.collections import LineCollection
+from matplotlib.collections import PathCollection
+import matplotlib.ticker as ticker
 
 def recover_figsize(old_fig):
     """ Function takes a figure object and extracts size in inches
@@ -75,7 +78,7 @@ def sharing_axis(new_ax_og, old_fig, old_ax):
     return new_ax
 
 def recover_Line2D(old_ax, new_ax):
-    """ Function takes an axis and extracts all 2d lines
+    """ Function takes an axis and extracts all 2d lines, including axlines
 
     Parameters
     ----------
@@ -85,38 +88,149 @@ def recover_Line2D(old_ax, new_ax):
         Axis of the new figure
     """
     for line in old_ax.get_lines():
-        new_ax.plot(
-            line.get_xdata(), 
-            line.get_ydata(), 
-            label=line.get_label(),
-            color=line.get_color(),
-            linestyle=line.get_linestyle()
-        )
-
-def recover_axhline(old_ax, new_ax):
-    """ Function takes an axis and extracts all axlines
-
-    Parameters
-    ----------
-    old_ax : matplotlib.axes._axes.Axes
-        Axis of the original figure
-    new_ax : matplotlib.axes._axes.Axes
-        Axis of the new figure
-    """
-    for line in old_ax.get_lines():
-        # Check if the line is a horizontal line (constant y-value)
         y_data = np.array(line.get_ydata())  # Convert to numpy array if it's not already
-        if y_data.size == 2:  # If it's a horizontal line (constant y-value)
-            y_value = y_data[0]
-            
-            # Recover the axhline using axhline in new_ax
-            new_ax.axhline(
-                y=y_value,
+        x_data = np.array(line.get_xdata())  # Convert to numpy array if it's not already
+        # Check if the line is a horizontal line (constant y-value)
+        if y_data.size == 2:  
+            if y_data[0] == y_data[-1]: # If it's a horizontal line (constant y-value)
+                y_value = y_data[0]
+                
+                # Recover the axhline using axhline in new_ax
+                new_ax.axhline(
+                    y=y_value,
+                    color=line.get_color(),
+                    linestyle=line.get_linestyle(),
+                    linewidth=line.get_linewidth(),
+                    label=line.get_label()  # If you want to recover the label as well
+                )
+            elif x_data[0] == x_data[-1]: # If it's a vertical line (constant x-value)
+                x_value = x_data[0]
+
+                # Recover the axhline using axhline in new_ax
+                new_ax.axvline(
+                    x=x_value,
+                    color=line.get_color(),
+                    linestyle=line.get_linestyle(),
+                    linewidth=line.get_linewidth(),
+                    label=line.get_label()  # If you want to recover the label as well
+                )
+            # recovers any other Line2D
+            else:
+                new_ax.plot(
+                    line.get_xdata(), 
+                    line.get_ydata(), 
+                    label=line.get_label(),
+                    color=line.get_color(),
+                    linestyle=line.get_linestyle()
+                )
+        # recovers any other Line2D
+        else:
+            new_ax.plot(
+                line.get_xdata(), 
+                line.get_ydata(), 
+                label=line.get_label(),
                 color=line.get_color(),
-                linestyle=line.get_linestyle(),
-                linewidth=line.get_linewidth(),
-                label=line.get_label()  # If you want to recover the label as well
+                linestyle=line.get_linestyle()
             )
+
+def recover_hlines_vlines(old_ax, new_ax):
+    """ Function takes an axis and extracts all hlines() and vlines()
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    # Original Axes and its LineCollections
+    collections = [c for c in old_ax.collections if isinstance(c, LineCollection)]
+    
+    xmin, xmax = old_ax.get_xlim()
+    ymin, ymax = old_ax.get_ylim()
+
+    for coll in collections:
+        segments = coll.get_segments()
+        
+        # Visual properties
+        colors = coll.get_colors()
+        linewidths = coll.get_linewidths()
+        linestyles = coll.get_linestyles()
+        alpha = coll.get_alpha()
+        label = coll.get_label()
+
+        # Handle segment by segment
+        for i, seg in enumerate(segments):
+            (x0, y0), (x1, y1) = seg
+            color = colors[i % len(colors)] if len(colors) > 0 else 'black'
+            lw = linewidths[i % len(linewidths)] if len(linewidths) > 0 else 1.0
+            ls = linestyles[i % len(linestyles)] if len(linestyles) > 0 else 'solid'
+            show_label = label if i == 0 else '_nolegend_'  # avoid label duplication
+
+            if (x0 == x1) and (y0 == ymin) and (y1 == ymax):
+                # Full vertical line: Use axvline for auto y-extent
+                new_ax.axvline(
+                    x=x0, color=color, linestyle=ls,
+                    linewidth=lw, alpha=alpha, label=show_label
+                )
+            elif (y0 == y1) and (x0 == xmin) and (x1 == xmax):
+                # Full horizontal line: Use axhline for auto y-extent
+                new_ax.axhline(
+                    x=x0, color=color, linestyle=ls,
+                    linewidth=lw, alpha=alpha, label=show_label
+                )
+            else:
+                # Horizontal (or diagonal): Keep as LineCollection
+                new_coll = LineCollection(
+                    [seg], colors=[color], linewidths=[lw],
+                    linestyles=[ls], alpha=alpha, label=show_label
+                )
+                new_ax.add_collection(new_coll)
+
+def recover_errorbars(old_ax, new_ax):
+    """ Function takes an axis and extracts all hlines() and vlines()
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    cont = [c.lines[-1] for c in old_ax.containers if hasattr(c, 'lines')]
+    cont = [c for cc in cont for c in cc]
+
+    for coll in cont:
+        segments = coll.get_segments()
+        
+        # Visual properties
+        colors = coll.get_colors()
+        linewidths = coll.get_linewidths()
+        linestyles = coll.get_linestyles()
+        alpha = coll.get_alpha()
+        label = coll.get_label()
+
+        # Handle segment by segment
+        for i, seg in enumerate(segments):
+            (x0, y0), (x1, y1) = seg
+            color = colors[i % len(colors)] if len(colors) > 0 else 'black'
+            lw = linewidths[i % len(linewidths)] if len(linewidths) > 0 else 1.0
+            ls = linestyles[i % len(linestyles)] if len(linestyles) > 0 else 'solid'
+            show_label = label if i == 0 else '_nolegend_'  # avoid label duplication
+
+            if x0 == x1:
+                # Vertical: Use axvline for auto y-extent
+                new_ax.vlines(
+                    x=x0, ymin=y0, ymax=y1, color=color, linestyle=ls,
+                    linewidth=lw, alpha=alpha, label=show_label
+                )
+            else:
+                # Horizontal (or diagonal): Keep as LineCollection
+                new_coll = LineCollection(
+                    [seg], colors=[color], linewidths=[lw],
+                    linestyles=[ls], alpha=alpha, label=show_label
+                )
+                new_ax.add_collection(new_coll)
 
 def recover_fill_between(old_ax, new_ax):
     """ Function takes an axis and extracts all fill_between
@@ -143,6 +257,89 @@ def recover_fill_between(old_ax, new_ax):
                     color=poly.get_facecolor()[0], 
                     alpha=poly.get_alpha()
                 )
+
+def recover_scatter(old_ax, new_ax):
+    """ Function takes an axis and extracts all scatter plot data
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    # Get original axis and scatter collections
+    scatters = [c for c in old_ax.collections if isinstance(c, PathCollection)]
+
+    for scatter in scatters:
+        new_ax.scatter(
+            scatter.get_offsets()[:, 0], scatter.get_offsets()[:, 1],
+            s=scatter.get_sizes(),
+            c=scatter.get_facecolors() if len(scatter.get_facecolors()) > 0 else None,
+            edgecolors=scatter.get_edgecolors() if len(scatter.get_edgecolors()) > 0 else None,
+            alpha=scatter.get_alpha(),
+            label=scatter.get_label() if scatter.get_label() != '_nolegend_' else None  # Only keep valid labels
+        )
+
+def recover_barplot(old_ax, new_ax):
+    """ Function takes an axis and extracts all bar plot data
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    bars = [patch for patch in old_ax.patches if isinstance(patch, plt.Rectangle)]
+    bars = [b for b in bars if b.get_y() != 0 or b.get_height() != old_ax.get_ylim()[1]]
+
+    bar_data = []
+    for b in bars:
+        edge = b.get_edgecolor()
+        if isinstance(edge, (tuple, list)) and len(edge) == 4 and edge[-1] == 0.0:
+            edge = 'none'
+        bar_data.append({
+            "x": b.get_x(),
+            "y": b.get_y(),
+            "width": b.get_width(),
+            "height": b.get_height(),
+            "facecolor": b.get_facecolor(),
+            "edgecolor": edge,
+            "linewidth": b.get_linewidth(),
+            "linestyle": b.get_linestyle(),
+            "alpha": b.get_alpha(),
+            "original_bar": b
+        })
+
+    handles, labels = old_ax.get_legend_handles_labels()
+
+    new_bars = []
+    # Replot all bars WITHOUT labels
+    for b in bar_data:
+        bar = new_ax.bar(
+            b["x"],
+            b["height"],
+            width=b["width"],
+            color=b["facecolor"],
+            edgecolor=b["edgecolor"],
+            linewidth=b["linewidth"],
+            linestyle=b["linestyle"],
+            alpha=b["alpha"],
+            align='edge'
+        )[0]
+        new_bars.append(bar)
+
+    # Now assign labels to a subset of bars for the legend:
+    # Match old handles to new bars by color or position
+    # Here we do a simple color-based matching:
+    for handle, label in zip(handles, labels):
+        # Find first new bar matching handle color and assign label
+        target_fc = handle.get_facecolor() if hasattr(handle, 'get_facecolor') else None
+        for bar in new_bars:
+            if np.allclose(bar.get_facecolor(), target_fc):
+                bar.set_label(label)
+                break
 
 def recover_axis_formatting(old_ax, new_ax):
     """ Function takes an axis and recovers axis formatting
@@ -179,8 +376,7 @@ def recover_legend(old_ax, new_ax):
     new_ax : matplotlib.axes._axes.Axes
         Axis of the new figure
     """
-    if old_ax.get_legend() is not None:
-        new_ax.legend()
+    new_ax.legend(*old_ax.get_legend_handles_labels())
 
 def print_into_row_subplots(temp_fig_list, new_fig, pad):
     """ Function takes a list of figure objects and 
@@ -288,6 +484,9 @@ def legends_only_last_subplot(fig, tens):
                 labels+=l
                 if i+flat_mat[0]==mat[-1][-1]:
                     ax.legend(handles, labels)
+                else:
+                    if ax.get_legend() is not None:
+                        ax.get_legend().remove()
             else:
                 if ax.get_legend() is not None:
                     ax.get_legend().remove()
@@ -350,6 +549,92 @@ def set_common_ylims(fig, tens):
             for m in mat:
                 fig.axes[m[j]].set_ylim(y_min_all,y_max_all)
     # fig.tight_layout()
+
+    return fig
+
+def set_common_xlims(fig, tens, sharex):
+    """ Function makes sure that all x limits are common
+    across a row, a col, or both of subplots, even for twinx axes
+    
+    Parameters
+    ----------
+    fig : Figure
+        figure with subplots
+    tens : list
+        list in the subplot shape that indicates the numbering of axes 
+        for each subplot
+    sharex : bool or {'none', 'all', 'row', 'col'}, optional, default: False
+        Controls sharing of properties among x axes:
+        True or 'all': x-axis will be shared among all subplots.
+        False or 'none': each subplot x-axis will be independent.
+        'row': each subplot row will share an x-axis.
+        'col': each subplot column will share an x-axis.
+
+    Returns
+    -------
+    fig : Figure
+        figure with subplots
+    """
+    if sharex == 'row':
+        fig = sharex_rows(fig, tens)
+    elif sharex == 'col':
+        fig = sharex_cols(fig, tens)
+    elif (sharex == True) or (sharex == 'all'):
+        fig = sharex_rows(fig, tens)
+        fig = sharex_cols(fig, tens)
+    else:
+        pass
+
+    return fig
+
+def sharex_rows(fig, tens):
+    """ Function makes sure that all x limits are common
+    across a row of subplots, even for twinx axes
+    
+    Parameters
+    ----------
+    fig : Figure
+        figure with subplots
+    tens : list
+        list in the subplot shape that indicates the numbering of axes 
+        for each subplot
+
+    Returns
+    -------
+    fig : Figure
+        figure with subplots
+    """
+    lims = [[fig.axes[r].get_xlim() for rr in row for r in rr] for row in tens]
+    xmin = [np.min([i[0] for i in row]) for row in lims]
+    xmax = [np.max([i[1] for i in row]) for row in lims]
+    for nrow,row in enumerate(tens):
+        for i in [r for rr in row for r in rr]:
+            ax = fig.axes[i]
+            ax.set_xlim(xmin[nrow], xmax[nrow])
+            ax.xaxis.set_major_locator(ticker.AutoLocator())
+            ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+
+    return fig
+
+def sharex_cols(fig, tens):
+    """ Function makes sure that all x limits are common
+    across a col of subplots, even for twinx axes
+    
+    Parameters
+    ----------
+    fig : Figure
+        figure with subplots
+    tens : list
+        list in the subplot shape that indicates the numbering of axes 
+        for each subplot
+
+    Returns
+    -------
+    fig : Figure
+        figure with subplots
+    """
+    tens_transpose = list(map(list, zip(*tens)))
+    fig = sharex_rows(fig, tens_transpose)
 
     return fig
 
@@ -417,18 +702,27 @@ def plot_same_new_figure(old_fig, new_ax_og):
         # Re-plot Line2D objects
         recover_Line2D(old_ax, new_ax)
 
-        # Recover axhline (horizontal lines)
-        recover_axhline(old_ax, new_ax)
+        # Recover x and y error bars
+        recover_errorbars(old_ax, new_ax)
+
+        # Recover hlines and vlines (horizontal and vertical liness)
+        recover_hlines_vlines(old_ax, new_ax)
 
         # Re-plot fill_between (PolyCollection) objects
         recover_fill_between(old_ax, new_ax)
+
+        # Recover all scatter plot data
+        recover_scatter(old_ax, new_ax)
+
+        # Recover all bar plot data
+        recover_barplot(old_ax, new_ax)
 
         # Recover axis labels and title from the original axes
         # Recover tick labels (if any custom ticks were used)
         # Recover x and y limits from the original axes
         recover_axis_formatting(old_ax, new_ax)
 
+        recover_axis_position(old_ax, new_ax)
+
         # Recover legend (if present)
         recover_legend(old_ax, new_ax)
-
-        recover_axis_position(old_ax, new_ax)
