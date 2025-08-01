@@ -22,12 +22,18 @@ def get_all_legends_fig(fig):
     labels : list
         All legend labels
     """
-
     handles = []
     labels = []
     for ax in fig.axes:
         handles += get_all_legends_ax(ax)[0]
-        labels += get_all_legends_ax(ax)[1]
+        labels  += get_all_legends_ax(ax)[1]
+
+    if len(handles) == 0:
+        for ax in fig.axes:
+            legend = ax.get_legend()
+            if legend is not None:
+                handles += legend.legend_handles
+                labels  += [text.get_text() for text in legend.get_texts()]
 
     return handles, labels
 
@@ -83,6 +89,8 @@ def isolate_legend(fig_no_legend, save_plots=None):
         ax = fig_no_legend.axes[0]
         legend = get_all_legends_ax(ax)
         handles, labels = legend
+        if len(handles) == 0:
+            handles, labels = get_all_legends_fig(fig_no_legend)
     else:
         if len(list_idx_ax_leg)==0:
             legend = next((a for a in fig_no_legend.get_children() if isinstance(a, matplotlib.legend.Legend)), None)
