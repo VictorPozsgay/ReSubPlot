@@ -11,6 +11,7 @@ import matplotlib.collections as mcoll
 from matplotlib.collections import LineCollection
 from matplotlib.collections import PathCollection
 import matplotlib.ticker as ticker
+from matplotlib.transforms import BlendedGenericTransform
 
 def recover_figsize(old_fig):
     """ Function takes a figure object and extracts size in inches
@@ -257,6 +258,72 @@ def recover_fill_between(old_ax, new_ax):
                     color=poly.get_facecolor()[0], 
                     alpha=poly.get_alpha()
                 )
+
+def recover_axvspan(old_ax, new_ax):
+    """ Function takes an axis and extracts all fill_between
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    # Copy axvspan-like patches (usually rectangles)
+    for patch in old_ax.patches:
+        if hasattr(patch, "get_xy"):
+            xy = patch.get_xy()
+            if len(xy) == 5:  # rectangle (closed path)
+                x0 = xy[0][0]
+                x1 = xy[2][0]
+                new_ax.axvspan(x0, x1, facecolor=patch.get_facecolor(), alpha=patch.get_alpha())
+
+def is_scatter_with_x_data_y_axes(collection, ax):
+    offset_transform = collection.get_offset_transform()
+    return (
+        isinstance(offset_transform, BlendedGenericTransform)
+        and offset_transform._x == ax.transData
+        and offset_transform._y == ax.transAxes
+    )
+
+def recover_scatter_all(old_ax, new_ax):
+    """ Function takes an axis and extracts all scatter plots,
+    even the ones that are created using a BlendedGenericTransform
+    and respects y fraction of axes
+
+    Parameters
+    ----------
+    old_ax : matplotlib.axes._axes.Axes
+        Axis of the original figure
+    new_ax : matplotlib.axes._axes.Axes
+        Axis of the new figure
+    """
+    y_min, y_max = new_ax.get_ylim()
+
+    colls = [c for c in old_ax.collections if isinstance(c, PathCollection)]
+
+    for coll in colls:
+        offsets = coll.get_offsets()
+        if offsets.size == 0:
+            continue  # skip empty collections
+
+        x_vals = offsets[:, 0]
+        y_vals = offsets[:, 1]
+
+        if is_scatter_with_x_data_y_axes(coll, old_ax):
+            # Convert y from axis fraction to new data coordinates
+            y_vals = y_min + y_vals * (y_max - y_min)
+
+        # Plot into new axis
+        new_ax.scatter(
+            x_vals, y_vals,
+            s=coll.get_sizes(),
+            c=coll.get_facecolors() if len(coll.get_facecolors()) > 0 else None,
+            edgecolors=coll.get_edgecolors() if len(coll.get_edgecolors()) > 0 else None,
+            alpha=coll.get_alpha(),
+            label=coll.get_label() if coll.get_label() != '_nolegend_' else None,  # Only keep valid labels
+            marker=coll.get_paths()[0] if coll.get_paths() else 'o'
+        )
 
 def recover_scatter(old_ax, new_ax):
     """ Function takes an axis and extracts all scatter plot data
@@ -698,6 +765,15 @@ def plot_same_new_figure(old_fig, new_ax_og):
     for old_ax in old_fig.axes:
         new_ax = sharing_axis(new_ax_og, old_fig, old_ax)
         # recover_figsize(old_fig)
+        
+        # Recover hlines and vlines (horizontal and vertical liness)
+        recover_hlines_vlines(old_ax, new_ax)
+
+        # Re-plot fill_between (PolyCollection) objects
+        recover_fill_between(old_ax, new_ax)
+
+        # Re-plot axvspan (matplotlib.patches.Polygon) objects
+        recover_axvspan(old_ax, new_ax)
 
         # Re-plot Line2D objects
         recover_Line2D(old_ax, new_ax)
@@ -705,17 +781,13 @@ def plot_same_new_figure(old_fig, new_ax_og):
         # Recover x and y error bars
         recover_errorbars(old_ax, new_ax)
 
-        # Recover hlines and vlines (horizontal and vertical liness)
-        recover_hlines_vlines(old_ax, new_ax)
-
-        # Re-plot fill_between (PolyCollection) objects
-        recover_fill_between(old_ax, new_ax)
-
-        # Recover all scatter plot data
-        recover_scatter(old_ax, new_ax)
-
         # Recover all bar plot data
         recover_barplot(old_ax, new_ax)
+
+        # Recover all scatter plot data
+        # recover_scatter(old_ax, new_ax)
+        recover_scatter_all(old_ax, new_ax)
+
 
         # Recover axis labels and title from the original axes
         # Recover tick labels (if any custom ticks were used)
